@@ -1,98 +1,174 @@
 
+#define _POSIX_C_SOURCE 199309L
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <time.h>
-#include <string.h>
 
 #define SIZE 1000000
+#define CPU_ITERATIONS 20000000LL
+#define IO_LINES 50000
+#define REPEATS 3
 
-double get_time()
+double now_seconds(void)
 {
-    return (double)clock() / CLOCKS_PER_SEC;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec / 1000000000.0;
 }
 
-void cpu_test()
+void save_result(const char *test, int run, double seconds,
+                 long long metric)
+{
+    FILE *fp = fopen("benchmark_results.csv", "a");
+    if (fp == NULL) {
+        perror("Cannot save CSV result");
+        return;
+    }
+
+    fprintf(fp, "%s,%d,%.6f,%lld\n",
+            test, run, seconds, metric);
+    fclose(fp);
+}
+
+double cpu_test(int run)
 {
     volatile long long sum = 0;
-    double start = get_time();
+    double start = now_seconds();
 
-    for (long long i = 0; i < 50000000; i++)
+    for (long long i = 0; i < CPU_ITERATIONS; i++)
         sum += i;
 
-    double end = get_time();
+    double elapsed = now_seconds() - start;
 
-    printf("\nCPU BENCHMARK\n");
-    printf("Calculation result: %lld\n", sum);
-    printf("Execution time: %.4f seconds\n", end - start);
+    printf("CPU: %.6f seconds | Result: %lld\n",
+           elapsed, (long long)sum);
+    save_result("CPU", run, elapsed, (long long)sum);
+    return elapsed;
 }
 
-void memory_test()
+double memory_test(int run)
 {
-    double start = get_time();
-
+    double start = now_seconds();
     int *arr = malloc(SIZE * sizeof(int));
 
     if (arr == NULL) {
-        printf("Memory allocation failed!\n");
-        return;
+        printf("Memory allocation failed.\n");
+        return -1.0;
     }
 
     for (int i = 0; i < SIZE; i++)
         arr[i] = i;
 
-    double end = get_time();
+    double elapsed = now_seconds() - start;
 
-    printf("\nMEMORY BENCHMARK\n");
-    printf("Allocated memory: %zu bytes\n",
-           (size_t)SIZE * sizeof(int));
-    printf("Allocation and initialization time: %.4f seconds\n",
-           end - start);
+    printf("Memory: %.6f seconds | Allocated: %zu bytes\n",
+           elapsed, (size_t)SIZE * sizeof(int));
+
+    save_result("Memory", run, elapsed,
+                (long long)SIZE * sizeof(int));
 
     free(arr);
-    printf("Memory released successfully.\n");
+    return elapsed;
 }
 
-void io_test()
+double io_test(int run)
 {
-    FILE *fp;
-    char buffer[256];
-    double start = get_time();
+    char buffer[128];
+    double start = now_seconds();
 
-    fp = fopen("benchmark_test.txt", "w");
-
+    FILE *fp = fopen("benchmark_test.txt", "w");
     if (fp == NULL) {
-        perror("File open failed");
-        return;
+        perror("Cannot write test file");
+        return -1.0;
     }
 
-    for (int i = 0; i < 100000; i++)
-        fprintf(fp, "Operating Systems Benchmark Test\n");
+    for (int i = 0; i < IO_LINES; i++)
+        fprintf(fp, "Operating Systems benchmark test %d\n", i);
 
-    fclose(fp);
+    if (fclose(fp) != 0) {
+        perror("Cannot close test file");
+        return -1.0;
+    }
 
     fp = fopen("benchmark_test.txt", "r");
-
     if (fp == NULL) {
-        perror("File read failed");
-        return;
+        perror("Cannot read test file");
+        return -1.0;
     }
 
+    int lines = 0;
     while (fgets(buffer, sizeof(buffer), fp) != NULL)
-        ;
+        lines++;
 
     fclose(fp);
 
-    double end = get_time();
+    double elapsed = now_seconds() - start;
 
-    printf("\nFILE I/O BENCHMARK\n");
-    printf("Lines written and read: 100000\n");
-    printf("Total read/write time: %.4f seconds\n", end - start);
-    printf("Test file: benchmark_test.txt\n");
+    printf("File I/O: %.6f seconds | Lines read: %d\n",
+           elapsed, lines);
+    save_result("FileIO", run, elapsed, lines);
+    return elapsed;
 }
 
-int main()
+void run_all(void)
+{
+    double cpu_total = 0, mem_total = 0, io_total = 0;
+    int cpu_count = 0, mem_count = 0, io_count = 0;
+
+    printf("\nRunning %d benchmark rounds...\n", REPEATS);
+
+    for (int r = 1; r <= REPEATS; r++) {
+        printf("\n--- Run %d ---\n", r);
+
+        double t = cpu_test(r);
+        if (t >= 0) {
+            cpu_total += t;
+            cpu_count++;
+        }
+
+        t = memory_test(r);
+        if (t >= 0) {
+            mem_total += t;
+            mem_count++;
+        }
+
+        t = io_test(r);
+        if (t >= 0) {
+            io_total += t;
+            io_count++;
+        }
+    }
+
+    printf("\n===== AVERAGE RESULTS =====\n");
+    if (cpu_count)
+        printf("CPU average: %.6f seconds\n",
+               cpu_total / cpu_count);
+    if (mem_count)
+        printf("Memory average: %.6f seconds\n",
+               mem_total / mem_count);
+    if (io_count)
+        printf("File I/O average: %.6f seconds\n",
+               io_total / io_count);
+
+    printf("Detailed results saved in benchmark_results.csv\n");
+}
+
+int main(void)
 {
     int choice;
+
+    FILE *fp = fopen("benchmark_results.csv", "r");
+    if (fp == NULL) {
+        fp = fopen("benchmark_results.csv", "w");
+        if (fp == NULL) {
+            perror("Cannot create results file");
+            return 1;
+        }
+        fprintf(fp, "Test,Run,Seconds,Metric\n");
+    }
+    if (fp != NULL)
+        fclose(fp);
 
     while (1) {
         printf("\n=================================\n");
@@ -101,7 +177,7 @@ int main()
         printf("1. CPU Benchmark\n");
         printf("2. Memory Benchmark\n");
         printf("3. File I/O Benchmark\n");
-        printf("4. Run All Benchmarks\n");
+        printf("4. Run All (3 rounds + averages)\n");
         printf("5. Exit\n");
         printf("Enter your choice: ");
 
@@ -111,25 +187,16 @@ int main()
         }
 
         switch (choice) {
-            case 1:
-                cpu_test();
-                break;
-            case 2:
-                memory_test();
-                break;
-            case 3:
-                io_test();
-                break;
-            case 4:
-                cpu_test();
-                memory_test();
-                io_test();
-                break;
+            case 1: cpu_test(1); break;
+            case 2: memory_test(1); break;
+            case 3: io_test(1); break;
+            case 4: run_all(); break;
             case 5:
                 printf("Benchmark completed. Goodbye!\n");
                 return 0;
             default:
-                printf("Please enter a number from 1 to 5.\n");
+                printf("Choose a number from 1 to 5.\n");
         }
     }
 }
+

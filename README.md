@@ -1,32 +1,50 @@
 # Linux Performance Benchmarking Tool
 
 ## Project Overview
-A C-based tool for measuring CPU, memory, and file I/O
-benchmark execution times on Linux.
+A C-based application that measures CPU computation,
+memory allocation and initialization, and file I/O performance
+on Linux systems.
 
 ## Technologies
 - C programming language
 - GCC compiler
 - Ubuntu 24.04 on WSL2
-- Git
-
-## Compilation
-gcc benchmark.c -o benchmark
-
-## Execution
-./benchmark
+- Git and GitHub
 
 ## Features
 1. CPU calculation benchmark
 2. Memory allocation and initialization benchmark
-3. File read/write benchmark
-4. Run all benchmarks
+3. File writing and reading benchmark
+4. Three repeated benchmark rounds
+5. Average execution time calculation
+6. CSV result logging
+7. Interactive menu for individual or combined tests
 
-## Testing
-The application was compiled and executed successfully.
-Measured results include CPU execution time, memory test
-time, and file I/O time.
+## Compilation
+gcc -std=c11 -Wall -Wextra benchmark.c -o benchmark
+
+## Execution
+./benchmark
+
+Select option 4 to run all benchmarks.
+
+## Sample Results
+CPU average: 0.017715 seconds
+Memory average: 0.002700 seconds
+File I/O average: 0.007934 seconds
+
+These are sample measurements from one run on the
+development system. Results may vary.
+
+## Output
+benchmark_results.csv stores individual run measurements.
 
 ## Limitations
-The current version measures selected operations and does
-not yet provide complete system-wide resource measurements.
+The current version measures selected operations rather
+than complete system-wide performance.
+
+## Future Enhancements
+- System resource monitoring
+- More benchmark repetitions
+- Performance graphs
+- Comparison across different systems
